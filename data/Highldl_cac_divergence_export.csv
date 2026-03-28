@@ -1,0 +1,18 @@
+﻿Biomarker,Protected (CAC=0),Calcified (CAC>0),Difference
+Avg Age (yr),52.2,49.1,-3.1
+% Male,61.2,87.5,+26.3
+Avg BMI,23.3,22.3,-1.0
+Avg LDL (mg/dL),175.9,181.3,+5.4
+Avg HDL (mg/dL),55.0,55.0,+0.0
+Avg Triglycerides (mg/dL),90.3,93.9,+3.6
+Avg TG/HDL Ratio,1.72,1.75,+0.03
+% Pattern B (Small Dense),18.4,0.0,-18.4
+Avg Non-HDL Chol (mg/dL),189.9,193.5,+3.6
+Avg Glucose (mg/dL),90.1,89.5,-0.6
+Avg HbA1c (%),5.61,5.55,-0.06
+Avg Systolic BP (mmHg),112.9,108.4,-4.5
+Avg Diastolic BP (mmHg),75.2,76.0,+0.8
+Avg hs-CRP (mg/L),0.11,0.07,-0.04
+Avg GFR (mL/min),85.8,71.2,-14.6
+% Current Smoker,6.1,50.0,+43.9
+% Ex-Smoker,20.4,25.0,+4.6

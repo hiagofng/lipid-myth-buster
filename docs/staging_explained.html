@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LipidMythBuster — Staging Layer Explained</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --accent2: #f472b6;
+    --accent3: #34d399;
+    --accent4: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: #334155;
+    --danger: #ef4444;
+    --code-bg: #0d1117;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0;
+  }
+
+  /* Navigation */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    justify-content: center;
+  }
+  .nav a {
+    color: var(--muted); text-decoration: none;
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 0.85rem; transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .nav a:hover, .nav a.active {
+    color: var(--accent); border-color: var(--accent);
+    background: rgba(56, 189, 248, 0.1);
+  }
+
+  /* Layout */
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Hero */
+  .hero {
+    text-align: center; padding: 60px 20px 40px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(244,114,182,0.1));
+    border-radius: 16px; margin-bottom: 48px;
+  }
+  .hero h1 { font-size: 2.4rem; margin-bottom: 12px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+
+  /* Sections */
+  section { margin-bottom: 56px; scroll-margin-top: 80px; }
+  h2 {
+    font-size: 1.6rem; margin-bottom: 20px;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+    display: inline-block;
+  }
+  h3 { font-size: 1.2rem; color: var(--accent); margin: 24px 0 12px; }
+  p { margin-bottom: 14px; }
+
+  /* Cards */
+  .card {
+    background: var(--card); border-radius: 12px;
+    padding: 24px; margin: 16px 0;
+    border: 1px solid var(--border);
+  }
+  .card-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px; margin: 16px 0;
+  }
+
+  /* Diagrams (ASCII-style with styling) */
+  .diagram {
+    background: var(--code-bg); border-radius: 12px;
+    padding: 24px; margin: 20px 0;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.85rem; line-height: 1.8;
+    overflow-x: auto; white-space: pre;
+    border: 1px solid var(--border);
+  }
+  .diagram .highlight { color: var(--accent); font-weight: bold; }
+  .diagram .pink { color: var(--accent2); }
+  .diagram .green { color: var(--accent3); }
+  .diagram .yellow { color: var(--accent4); }
+  .diagram .red { color: var(--danger); }
+  .diagram .muted { color: var(--muted); }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg); border-radius: 8px;
+    padding: 18px; margin: 14px 0;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.85rem; overflow-x: auto;
+    border: 1px solid var(--border);
+    line-height: 1.6;
+  }
+  code {
+    background: var(--code-bg); padding: 2px 6px;
+    border-radius: 4px; font-size: 0.9em;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .sql-keyword { color: var(--accent2); font-weight: bold; }
+  .sql-string { color: var(--accent3); }
+  .sql-comment { color: var(--muted); font-style: italic; }
+  .sql-number { color: var(--accent4); }
+  .sql-function { color: var(--accent); }
+
+  /* Analogy boxes */
+  .analogy {
+    background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(244,114,182,0.08));
+    border-left: 4px solid var(--accent);
+    border-radius: 0 12px 12px 0;
+    padding: 20px 24px; margin: 20px 0;
+  }
+  .analogy .label {
+    font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--accent); margin-bottom: 8px;
+  }
+
+  /* Jargon tooltips */
+  .jargon {
+    border-bottom: 2px dotted var(--accent4);
+    cursor: help; position: relative;
+    color: var(--accent4);
+  }
+  .jargon:hover::after {
+    content: attr(data-def);
+    position: absolute; bottom: 130%; left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a2e; color: var(--text);
+    padding: 10px 14px; border-radius: 8px;
+    font-size: 0.82rem; width: max-content; max-width: 320px;
+    border: 1px solid var(--accent4);
+    z-index: 50; line-height: 1.5;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  /* Interactive toggles */
+  .toggle-section { margin: 16px 0; }
+  .toggle-btn {
+    background: var(--card); color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 8px;
+    padding: 10px 20px; cursor: pointer;
+    font-size: 0.9rem; width: 100%;
+    text-align: left; display: flex;
+    justify-content: space-between; align-items: center;
+    transition: all 0.2s;
+  }
+  .toggle-btn:hover { background: rgba(56,189,248,0.1); }
+  .toggle-btn .arrow { transition: transform 0.3s; }
+  .toggle-btn.open .arrow { transform: rotate(90deg); }
+  .toggle-content {
+    display: none; padding: 16px 20px;
+    background: var(--card); border: 1px solid var(--border);
+    border-top: none; border-radius: 0 0 8px 8px;
+  }
+  .toggle-content.open { display: block; }
+
+  /* Visual scales */
+  .scale {
+    display: flex; border-radius: 8px; overflow: hidden;
+    margin: 12px 0; height: 44px;
+  }
+  .scale-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 600;
+    padding: 0 8px; white-space: nowrap;
+  }
+
+  /* Equation display */
+  .equation {
+    background: var(--card); border-radius: 12px;
+    padding: 20px; margin: 16px 0; text-align: center;
+    font-size: 1.3rem; border: 1px solid var(--border);
+  }
+  .equation .frac { display: inline-block; text-align: center; vertical-align: middle; }
+  .equation .frac-num { display: block; border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
+  .equation .frac-den { display: block; padding-top: 4px; }
+  .equation .eq-label {
+    display: block; font-size: 0.8rem; color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* Flow arrow lists */
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+  .flow-item {
+    background: var(--card); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 8px; font-size: 0.9rem;
+  }
+  .flow-arrow { color: var(--accent); font-size: 1.4rem; }
+
+  /* Tables */
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 16px 0; font-size: 0.9rem;
+  }
+  th {
+    background: var(--card); padding: 10px 14px;
+    text-align: left; border-bottom: 2px solid var(--accent);
+    color: var(--accent);
+  }
+  td {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  tr:hover td { background: rgba(56,189,248,0.05); }
+
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 3px 10px;
+    border-radius: 12px; font-size: 0.75rem; font-weight: 600;
+  }
+  .badge-green { background: rgba(52,211,153,0.2); color: var(--accent3); }
+  .badge-pink { background: rgba(244,114,182,0.2); color: var(--accent2); }
+  .badge-yellow { background: rgba(251,191,36,0.2); color: var(--accent4); }
+  .badge-blue { background: rgba(56,189,248,0.2); color: var(--accent); }
+  .badge-red { background: rgba(239,68,68,0.2); color: var(--danger); }
+
+  /* Progress tracker */
+  .progress-track {
+    display: flex; gap: 4px; margin: 20px 0;
+  }
+  .progress-step {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: var(--border);
+  }
+  .progress-step.done { background: var(--accent3); }
+  .progress-step.current { background: var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* Warning / info boxes */
+  .info-box {
+    padding: 16px 20px; border-radius: 8px; margin: 16px 0;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .info-box.warn { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); }
+  .info-box.tip { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); }
+  .info-box .icon { font-size: 1.3rem; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="#overview">Overview</a>
+  <a href="#analogy">Analogy</a>
+  <a href="#pipeline-flow">Pipeline Flow</a>
+  <a href="#cte">CTE Pattern</a>
+  <a href="#passthrough">Pass-Through</a>
+  <a href="#cac">CAC Score</a>
+  <a href="#ldl">LDL Categories</a>
+  <a href="#metabolic-flags">Metabolic Flags</a>
+  <a href="#smoking">Smoking</a>
+  <a href="#tg-hdl">TG/HDL Ratio</a>
+  <a href="#non-hdl">Non-HDL</a>
+  <a href="#met-score">MetS Score</a>
+  <a href="#met-status">MetS Status</a>
+  <a href="#quality">Quality Checks</a>
+  <a href="#thesis">The Thesis</a>
+</nav>
+
+<div class="container">
+
+<!-- ============================================================ -->
+<!-- HERO -->
+<!-- ============================================================ -->
+<div class="hero">
+  <h1>Staging Layer <span>Explained</span></h1>
+  <p>Everything your <code>stg_cac_health_screening.sql</code> does — the SQL, the medical science, and why it matters for LipidMythBuster.</p>
+  <div class="progress-track" style="max-width:400px;margin:24px auto 0">
+    <div class="progress-step done" title="Ingestion"></div>
+    <div class="progress-step current" title="Staging"></div>
+    <div class="progress-step" title="Reports"></div>
+    <div class="progress-step" title="Dashboard"></div>
+  </div>
+  <p style="font-size:0.8rem;color:var(--muted);margin-top:8px">You are here: Staging</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 1: OVERVIEW -->
+<!-- ============================================================ -->
+<section id="overview">
+  <h2>What is the Staging Layer?</h2>
+
+  <p>The staging layer sits between <strong>raw data</strong> (ingestion) and <strong>final analytics</strong> (reports/dashboard). It's where you <strong>clean, enrich, and derive</strong> new columns without modifying the original data.</p>
+
+  <div class="diagram"><span class="muted">YOUR PIPELINE (3 layers):</span>
+
+<span class="yellow">INGESTION</span>                    <span class="highlight">STAGING</span>                      <span class="pink">REPORTS</span>
+<span class="yellow">Raw data as-is</span>       -->    <span class="highlight">Clean + Enrich</span>        -->    <span class="pink">Aggregate for dashboard</span>
+<span class="yellow">1,688 rows</span>                   <span class="highlight">Still 1,688 rows</span>             <span class="pink">Summarized rows</span>
+<span class="yellow">22 columns</span>                   <span class="highlight">~30 columns (new derived)</span>    <span class="pink">Grouped metrics</span>
+<span class="yellow">No business logic</span>           <span class="highlight">Clinical categories added</span>    <span class="pink">Dashboard-ready</span></div>
+
+  <div class="info-box tip">
+    <span class="icon">&#128161;</span>
+    <div><strong>Key principle:</strong> The row count doesn't change. Staging adds <em>columns</em>, not rows. You're enriching each patient's record with derived clinical categories.</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 2: ANALOGY -->
+<!-- ============================================================ -->
+<section id="analogy">
+  <h2>The Kitchen Analogy</h2>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Think of your data pipeline like a restaurant kitchen:</p>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="color:var(--accent4)">Ingestion = Delivery Truck</h3>
+      <p>Raw ingredients arrive from the supplier (Figshare). You don't wash, cut, or season them. You just put them in the fridge (DuckDB) exactly as they came.</p>
+      <p><em>That's your <code>ingestion.cac_health_screening</code> table.</em></p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--accent)">Staging = Prep Kitchen</h3>
+      <p>A chef takes ingredients from the fridge and <strong>preps</strong> them: washes vegetables, cuts meat into portions, makes sauces. The raw ingredients still exist in the fridge untouched.</p>
+      <p><em>That's your <code>staging.stg_cac_health_screening</code> — it reads from raw and creates enriched versions.</em></p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--accent2)">Reports = Plated Dish</h3>
+      <p>The plated dish goes to the customer (your dashboard). It's the final presentation — aggregated, beautiful, ready to consume.</p>
+      <p><em>That's your reports layer (coming next).</em></p>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="label">Why not prep in the delivery truck?</div>
+    <p>If your prep logic has a bug (wrong seasoning), you just redo the prep. You don't need to call the supplier again. <strong>Separation of concerns</strong> = if staging SQL is wrong, re-run staging. Ingestion (the expensive download) stays untouched.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 3: PIPELINE FLOW -->
+<!-- ============================================================ -->
+<section id="pipeline-flow">
+  <h2>Pipeline Flow &amp; DAG</h2>
+
+  <p>The <code>depends:</code> keyword in the Bruin header creates a
+  <span class="jargon" data-def="Directed Acyclic Graph — a flow chart where arrows only go forward, never in loops. Bruin uses this to know which assets to run first.">DAG</span>:</p>
+
+  <div class="diagram"><span class="muted">Bruin reads your asset headers and builds this execution order:</span>
+
+<span class="yellow">ingestion.cac_health_screening</span>    <span class="muted">(Python asset — runs FIRST)</span>
+        |
+        |  <span class="muted">depends:</span>
+        v
+<span class="highlight">staging.stg_cac_health_screening</span>   <span class="muted">(SQL asset — runs SECOND)</span>
+        |
+        |  <span class="muted">depends:</span>
+        v
+<span class="pink">reports.??? </span>                       <span class="muted">(coming next — runs THIRD)</span></div>
+
+  <p>When you run <code>bruin run bruin/pipeline</code>, Bruin looks at all <code>depends:</code> declarations and runs assets in the right order. You never need to say "run ingestion first" — the DAG handles it.</p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 4: CTE -->
+<!-- ============================================================ -->
+<section id="cte">
+  <h2>The CTE Pattern</h2>
+
+  <p>Your SQL uses a <span class="jargon" data-def="Common Table Expression — a temporary named result set defined with WITH. Think of it as a 'mini table' that exists only for the duration of your query.">CTE</span> called <code>base</code>. Here's why:</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine you're grading 1,688 exams. For each exam you need to check: "Did they pass math? Did they pass science? Did they pass English?"</p>
+    <p><strong>Without CTE:</strong> You check each subject 3 separate times for every calculation that needs it. That's redundant.</p>
+    <p><strong>With CTE:</strong> You make ONE pass through all exams, stamp "pass/fail" for each subject, THEN use those stamps for all your calculations. One pass, reuse everywhere.</p>
+  </div>
+
+  <pre><span class="sql-keyword">WITH</span> base <span class="sql-keyword">AS</span> (
+    <span class="sql-keyword">SELECT</span>
+        *,  <span class="sql-comment">-- keep ALL original columns</span>
+
+        <span class="sql-comment">-- Compute flags ONCE here...</span>
+        <span class="sql-keyword">CASE WHEN</span> tg >= <span class="sql-number">150</span> <span class="sql-keyword">THEN</span> <span class="sql-number">1</span> <span class="sql-keyword">ELSE</span> <span class="sql-number">0</span> <span class="sql-keyword">END</span> <span class="sql-keyword">AS</span> _flag_high_tg,
+        <span class="sql-comment">-- ...so we can reuse them below without repeating logic</span>
+
+    <span class="sql-keyword">FROM</span> ingestion.cac_health_screening
+    <span class="sql-keyword">WHERE</span> no_figshare <span class="sql-keyword">IS NOT NULL</span>
+)
+
+<span class="sql-keyword">SELECT</span>
+    <span class="sql-comment">-- Now _flag_high_tg is available as a column</span>
+    _flag_high_tg <span class="sql-keyword">AS</span> high_triglycerides,                 <span class="sql-comment">-- used here</span>
+    _flag_high_tg + _flag_high_glucose + ... <span class="sql-keyword">AS</span> score   <span class="sql-comment">-- AND here</span>
+<span class="sql-keyword">FROM</span> base</pre>
+
+  <p>The <code>_</code> prefix on <code>_flag_high_tg</code> is a convention meaning "internal/temporary — not meant for the final output." The final SELECT renames them to clean names like <code>high_triglycerides</code>.</p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 5: PASS-THROUGH -->
+<!-- ============================================================ -->
+<section id="passthrough">
+  <h2>Section 1: Pass-Through Columns</h2>
+
+  <pre><span class="sql-keyword">SELECT</span>
+    no_figshare,    <span class="sql-comment">-- Subject ID</span>
+    age_yr,         <span class="sql-comment">-- Age in years</span>
+    sex,            <span class="sql-comment">-- M or F</span>
+    sbp, dbp,       <span class="sql-comment">-- Blood pressure (systolic/diastolic)</span>
+    weight, bmi,    <span class="sql-comment">-- Body metrics</span>
+    glucose,        <span class="sql-comment">-- Blood sugar</span>
+    chol,           <span class="sql-comment">-- Total cholesterol</span>
+    creatinine,     <span class="sql-comment">-- Kidney marker</span>
+    idms_mdrd_gfr,  <span class="sql-comment">-- Kidney filtration rate</span>
+    tg,             <span class="sql-comment">-- Triglycerides</span>
+    hdl_chol,       <span class="sql-comment">-- "Good" cholesterol</span>
+    ldl_chol,       <span class="sql-comment">-- "Bad" cholesterol (the myth!)</span>
+    hs_crp,         <span class="sql-comment">-- Inflammation marker</span>
+    hb_a1c,         <span class="sql-comment">-- 3-month blood sugar average</span>
+    hypertension,   <span class="sql-comment">-- High blood pressure flag</span>
+    diabetes,       <span class="sql-comment">-- Diabetes flag</span>
+    cacs,           <span class="sql-comment">-- THE calcium score</span></pre>
+
+  <p>These columns pass through <strong>unchanged</strong>. We keep the raw values because the reports layer or dashboard might need them for calculations we haven't thought of yet.</p>
+
+  <div class="info-box tip">
+    <span class="icon">&#128161;</span>
+    <div><strong>Notice:</strong> <code>ex_smoker</code> and <code>current_smoker</code> are NOT passed through — they're merged into <code>smoking_status</code> in section 5. No need to keep redundant columns.</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 6: CAC SCORE -->
+<!-- ============================================================ -->
+<section id="cac">
+  <h2>Section 2: CAC Risk Category</h2>
+
+  <h3>What is CACS?</h3>
+  <p>The <span class="jargon" data-def="Coronary Artery Calcium Score — a CT scan measures calcium deposits in your heart's arteries. More calcium = more plaque buildup = higher heart disease risk.">Coronary Artery Calcium Score (CACS)</span> is measured via a CT scan of the heart. Calcium deposits in the arteries indicate <span class="jargon" data-def="Atherosclerosis — hardening/narrowing of arteries due to plaque buildup (fat, cholesterol, calcium). The underlying disease process behind heart attacks.">atherosclerosis</span> (plaque buildup).</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine your arteries are water pipes. Over time, mineral deposits (calcium) build up inside. A CACS scan is like an X-ray of your pipes — it counts how much buildup there is. Zero = clean pipes. 400+ = heavily clogged.</p>
+  </div>
+
+  <h3>The Clinical Cutoffs</h3>
+  <div class="scale">
+    <div class="scale-seg" style="flex:1;background:#22c55e;color:#000">0 = None</div>
+    <div class="scale-seg" style="flex:2;background:#eab308;color:#000">1-99 = Mild</div>
+    <div class="scale-seg" style="flex:2;background:#f97316;color:#000">100-399 = Moderate</div>
+    <div class="scale-seg" style="flex:2;background:#ef4444;color:#fff">400+ = Severe</div>
+  </div>
+  <p style="font-size:0.8rem;color:var(--muted)">Source: Multi-Ethnic Study of Atherosclerosis (MESA) guidelines</p>
+
+  <h3>The SQL</h3>
+  <pre><span class="sql-keyword">CASE</span>
+    <span class="sql-keyword">WHEN</span> cacs = <span class="sql-number">0</span>                  <span class="sql-keyword">THEN</span> <span class="sql-string">'No calcification'</span>
+    <span class="sql-keyword">WHEN</span> cacs <span class="sql-keyword">BETWEEN</span> <span class="sql-number">1</span> <span class="sql-keyword">AND</span> <span class="sql-number">99</span>     <span class="sql-keyword">THEN</span> <span class="sql-string">'Mild'</span>
+    <span class="sql-keyword">WHEN</span> cacs <span class="sql-keyword">BETWEEN</span> <span class="sql-number">100</span> <span class="sql-keyword">AND</span> <span class="sql-number">399</span>  <span class="sql-keyword">THEN</span> <span class="sql-string">'Moderate'</span>
+    <span class="sql-keyword">WHEN</span> cacs >= <span class="sql-number">400</span>               <span class="sql-keyword">THEN</span> <span class="sql-string">'Severe'</span>
+<span class="sql-keyword">END AS</span> cac_risk_category</pre>
+
+  <div class="toggle-section">
+    <button class="toggle-btn" onclick="toggle(this)">
+      How does CASE WHEN work? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="toggle-content">
+      <p><code>CASE WHEN</code> is SQL's version of if/else. It checks conditions <strong>top to bottom</strong> and returns the first match:</p>
+      <pre><span class="sql-comment">-- Pseudocode equivalent:</span>
+if cacs == 0:
+    return "No calcification"
+elif cacs between 1 and 99:
+    return "Mild"
+elif cacs between 100 and 399:
+    return "Moderate"
+elif cacs >= 400:
+    return "Severe"
+else:
+    return NULL  <span class="sql-comment">-- no ELSE clause = NULL if nothing matches</span></pre>
+      <p>The result gets stored in a new column called <code>cac_risk_category</code> (the <code>AS</code> keyword names it).</p>
+    </div>
+  </div>
+
+  <h3>Why this matters for your thesis</h3>
+  <p>CACS is the <strong>outcome variable</strong> — the thing you're trying to predict/explain. Your thesis argues that metabolic health (triglycerides, glucose, etc.) predicts CACS better than LDL alone. This category makes it easy to visualize on a dashboard: "What % of people with 'Severe' CAC had high LDL vs high metabolic risk?"</p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 7: LDL CATEGORIES -->
+<!-- ============================================================ -->
+<section id="ldl">
+  <h2>Section 3: LDL Cholesterol Category</h2>
+
+  <h3>What is LDL?</h3>
+  <p><span class="jargon" data-def="Low-Density Lipoprotein — a protein that carries cholesterol through your blood. Often called 'bad cholesterol' because high levels are associated with plaque buildup. But the story is more nuanced than that — hence your project!">LDL (Low-Density Lipoprotein)</span> carries cholesterol through your bloodstream. It's famously called "bad cholesterol" because the conventional view is: more LDL = more plaque = more heart disease.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Think of LDL as <strong>delivery trucks</strong> carrying cholesterol packages through your blood vessels (highways). The conventional view says: "More trucks on the highway = more traffic jams (plaque)." Your project questions this: "Maybe it's not the NUMBER of trucks that matters, but whether the HIGHWAY is damaged (metabolic health) in the first place."</p>
+  </div>
+
+  <h3>The ATP III Classification</h3>
+  <p>These cutoffs come from the <span class="jargon" data-def="National Cholesterol Education Program, Adult Treatment Panel III — the U.S. clinical guidelines published in 2001 that defined these LDL categories. Still widely referenced, though newer guidelines exist.">NCEP ATP III</span> guidelines:</p>
+
+  <div class="scale">
+    <div class="scale-seg" style="flex:2;background:#22c55e;color:#000">&lt;100 Optimal</div>
+    <div class="scale-seg" style="flex:1.5;background:#86efac;color:#000">100-129 Near</div>
+    <div class="scale-seg" style="flex:1.5;background:#eab308;color:#000">130-159 Border</div>
+    <div class="scale-seg" style="flex:1.5;background:#f97316;color:#000">160-189 High</div>
+    <div class="scale-seg" style="flex:1;background:#ef4444;color:#fff">190+ V.High</div>
+  </div>
+
+  <pre><span class="sql-keyword">CASE</span>
+    <span class="sql-keyword">WHEN</span> ldl_chol &lt; <span class="sql-number">100</span>  <span class="sql-keyword">THEN</span> <span class="sql-string">'Optimal'</span>
+    <span class="sql-keyword">WHEN</span> ldl_chol &lt; <span class="sql-number">130</span>  <span class="sql-keyword">THEN</span> <span class="sql-string">'Near optimal'</span>
+    <span class="sql-keyword">WHEN</span> ldl_chol &lt; <span class="sql-number">160</span>  <span class="sql-keyword">THEN</span> <span class="sql-string">'Borderline high'</span>
+    <span class="sql-keyword">WHEN</span> ldl_chol &lt; <span class="sql-number">190</span>  <span class="sql-keyword">THEN</span> <span class="sql-string">'High'</span>
+    <span class="sql-keyword">WHEN</span> ldl_chol >= <span class="sql-number">190</span> <span class="sql-keyword">THEN</span> <span class="sql-string">'Very high'</span>
+<span class="sql-keyword">END AS</span> ldl_category</pre>
+
+  <div class="toggle-section">
+    <button class="toggle-btn" onclick="toggle(this)">
+      Why use &lt; instead of BETWEEN here? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="toggle-content">
+      <p>Using <code>&lt;</code> (less than) creates <strong>non-overlapping ranges</strong> naturally:</p>
+      <ul style="margin:10px 0 0 20px">
+        <li>If LDL = 129.5, it's <code>&lt; 130</code> so "Near optimal" &#10004;</li>
+        <li>If LDL = 130.0, it fails <code>&lt; 130</code>, moves to next: <code>&lt; 160</code> so "Borderline high" &#10004;</li>
+      </ul>
+      <p style="margin-top:10px">With <code>BETWEEN</code>, you'd need to worry about edge cases with decimals (does 129.5 fall in 100-129 or 130-159?). The <code>&lt;</code> approach is cleaner for continuous (float) values.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 8: METABOLIC FLAGS -->
+<!-- ============================================================ -->
+<section id="metabolic-flags">
+  <h2>Section 4: Metabolic Risk Flags</h2>
+
+  <p>These five binary flags are the <strong>heart of your thesis</strong>. Each one captures a different dimension of metabolic health:</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>high_triglycerides</h3>
+      <p><code>TG >= 150 mg/dL</code></p>
+      <p><span class="jargon" data-def="Triglycerides — a type of fat in your blood. Your body converts excess calories into triglycerides. High levels are linked to metabolic syndrome, insulin resistance, and heart disease.">Triglycerides (TG)</span> are blood fats. High TG often signals <span class="jargon" data-def="Insulin Resistance — your cells stop responding well to insulin, so your body makes more. This drives up blood sugar, triglycerides, and inflammation. It's the root cause of most metabolic disease.">insulin resistance</span> — the body is storing too much energy as fat.</p>
+      <p><span class="badge badge-yellow">Threshold: 150 mg/dL</span></p>
+    </div>
+    <div class="card">
+      <h3>high_glucose</h3>
+      <p><code>Glucose >= 100 mg/dL</code></p>
+      <p>Fasting <span class="jargon" data-def="Blood glucose — sugar in your blood, the body's primary fuel. Fasting glucose >100 mg/dL suggests impaired glucose metabolism (pre-diabetes territory).">blood glucose</span> above 100 indicates impaired fasting glucose — the first warning sign of diabetes.</p>
+      <p><span class="badge badge-yellow">Threshold: 100 mg/dL</span></p>
+    </div>
+    <div class="card">
+      <h3>low_hdl</h3>
+      <p><code>M: &lt;40 | F: &lt;50 mg/dL</code></p>
+      <p><span class="jargon" data-def="High-Density Lipoprotein — 'good cholesterol.' HDL carries cholesterol AWAY from arteries back to the liver. Higher HDL = better. Low HDL is a metabolic risk factor.">HDL</span> is the "garbage truck" that removes cholesterol from arteries. Low HDL means less cleanup. The threshold differs by sex because women naturally have higher HDL.</p>
+      <p><span class="badge badge-pink">Sex-specific threshold</span></p>
+    </div>
+    <div class="card">
+      <h3>obese</h3>
+      <p><code>BMI >= 30</code></p>
+      <p><span class="jargon" data-def="Body Mass Index — weight(kg) / height(m)^2. A rough proxy for body fat. BMI >= 30 is classified as obese. Imperfect (doesn't distinguish muscle from fat) but useful at population level.">BMI</span> >= 30 is clinical obesity. Used here as a proxy for waist circumference (which isn't in the dataset but is the standard MetS criterion).</p>
+      <p><span class="badge badge-blue">Proxy measure</span></p>
+    </div>
+    <div class="card">
+      <h3>prediabetic_or_diabetic</h3>
+      <p><code>HbA1c >= 5.7%</code></p>
+      <p><span class="jargon" data-def="Hemoglobin A1c (HbA1c) — measures the percentage of hemoglobin (in red blood cells) coated with sugar. It reflects your AVERAGE blood sugar over the past 2-3 months. Much more reliable than a single glucose reading.">HbA1c</span> is the "3-month blood sugar report card." Unlike fasting glucose (a single snapshot), HbA1c shows the trend. >= 5.7% = prediabetes territory.</p>
+      <p><span class="badge badge-red">Strong predictor</span></p>
+    </div>
+  </div>
+
+  <h3>The SQL for sex-specific HDL threshold</h3>
+  <pre><span class="sql-keyword">CASE</span>
+    <span class="sql-keyword">WHEN</span> sex = <span class="sql-string">'M'</span> <span class="sql-keyword">AND</span> hdl_chol &lt; <span class="sql-number">40</span> <span class="sql-keyword">THEN</span> <span class="sql-number">1</span>
+    <span class="sql-keyword">WHEN</span> sex = <span class="sql-string">'F'</span> <span class="sql-keyword">AND</span> hdl_chol &lt; <span class="sql-number">50</span> <span class="sql-keyword">THEN</span> <span class="sql-number">1</span>
+    <span class="sql-keyword">ELSE</span> <span class="sql-number">0</span>
+<span class="sql-keyword">END AS</span> _flag_low_hdl</pre>
+
+  <p>This checks <strong>two conditions</strong>: the sex AND the HDL value. A male with HDL = 42 gets <code>0</code> (normal), but a female with HDL = 42 gets <code>1</code> (low) because women's threshold is higher.</p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 9: SMOKING -->
+<!-- ============================================================ -->
+<section id="smoking">
+  <h2>Section 5: Smoking Status</h2>
+
+  <p>The raw data has two separate binary columns. Staging merges them into one clean categorical column:</p>
+
+  <div class="diagram"><span class="muted">RAW (two columns):</span>                 <span class="highlight">STAGED (one column):</span>
+
+  ex_smoker | current_smoker           smoking_status
+  ---------+-----------------          ----------------
+      0     |       1           -->    <span class="red">"Current"</span>
+      1     |       0           -->    <span class="yellow">"Former"</span>
+      0     |       0           -->    <span class="green">"Never"</span>
+      1     |       1           -->    <span class="red">"Current"</span> <span class="muted">(current takes priority)</span></div>
+
+  <pre><span class="sql-keyword">CASE</span>
+    <span class="sql-keyword">WHEN</span> current_smoker = <span class="sql-number">1</span> <span class="sql-keyword">THEN</span> <span class="sql-string">'Current'</span>    <span class="sql-comment">-- checked FIRST (priority)</span>
+    <span class="sql-keyword">WHEN</span> ex_smoker = <span class="sql-number">1</span>      <span class="sql-keyword">THEN</span> <span class="sql-string">'Former'</span>
+    <span class="sql-keyword">ELSE</span> <span class="sql-string">'Never'</span>
+<span class="sql-keyword">END AS</span> smoking_status</pre>
+
+  <p>Order matters! <code>current_smoker</code> is checked first. If someone has both flags = 1 (data quirk), they're classified as "Current" because that's the more relevant health risk.</p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 10: TG/HDL RATIO -->
+<!-- ============================================================ -->
+<section id="tg-hdl">
+  <h2>Section 6: TG/HDL Ratio &amp; LDL Particle Pattern</h2>
+
+  <p>This is one of the most powerful additions you made. Here's the science:</p>
+
+  <h3>Not all LDL is created equal</h3>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine LDL particles as balls being thrown at a wall (your artery). <strong>Pattern A</strong> particles are like big beach balls — they bounce off harmlessly. <strong>Pattern B</strong> particles are like golf balls — small, dense, and they punch holes in the wall (damage the artery lining).</p>
+    <p>Two people can have the SAME total LDL number, but one has mostly beach balls (safe) and the other has mostly golf balls (dangerous). This is why total LDL alone is misleading.</p>
+  </div>
+
+  <h3>The TG/HDL ratio as a proxy</h3>
+  <p>Directly measuring LDL particle size requires an expensive <span class="jargon" data-def="Nuclear Magnetic Resonance (NMR) — an advanced lab test that can measure the actual size and count of LDL particles. Most standard blood panels don't include this.">NMR test</span>. But research (Maruyama 2003, Boizel 2000) found that the <strong>TG/HDL ratio</strong> is a reliable proxy:</p>
+
+  <div class="equation">
+    <span class="frac">
+      <span class="frac-num" style="color:var(--accent4)">Triglycerides (TG)</span>
+      <span class="frac-den" style="color:var(--accent3)">HDL Cholesterol</span>
+    </span>
+    &nbsp; = &nbsp; TG/HDL Ratio
+    <span class="eq-label">If ratio > 2.5 → likely small dense LDL (Pattern B, dangerous)</span>
+    <span class="eq-label">If ratio ≤ 2.5 → likely large buoyant LDL (Pattern A, safer)</span>
+  </div>
+
+  <h3>The SQL</h3>
+  <pre><span class="sql-comment">-- The ratio itself (numeric)</span>
+<span class="sql-function">ROUND</span>(tg / <span class="sql-function">NULLIF</span>(hdl_chol, <span class="sql-number">0</span>), <span class="sql-number">2</span>) <span class="sql-keyword">AS</span> tg_hdl_ratio,
+
+<span class="sql-comment">-- The pattern classification (categorical)</span>
+<span class="sql-keyword">CASE</span>
+    <span class="sql-keyword">WHEN</span> (tg / <span class="sql-function">NULLIF</span>(hdl_chol, <span class="sql-number">0</span>)) > <span class="sql-number">2.5</span>
+        <span class="sql-keyword">THEN</span> <span class="sql-string">'Pattern B (Small Dense)'</span>
+    <span class="sql-keyword">WHEN</span> (tg / <span class="sql-function">NULLIF</span>(hdl_chol, <span class="sql-number">0</span>)) <span class="sql-keyword">IS NOT NULL</span>
+        <span class="sql-keyword">THEN</span> <span class="sql-string">'Pattern A (Large Buoyant)'</span>
+    <span class="sql-keyword">ELSE NULL</span>
+<span class="sql-keyword">END AS</span> estimated_ldl_particle_pattern</pre>
+
+  <div class="toggle-section">
+    <button class="toggle-btn" onclick="toggle(this)">
+      What does NULLIF(hdl_chol, 0) do? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="toggle-content">
+      <p><code>NULLIF(hdl_chol, 0)</code> says: "If hdl_chol equals 0, return NULL instead."</p>
+      <p>Why? Because dividing by zero crashes your query. If someone has HDL = 0 (unlikely but possible in dirty data), <code>tg / 0</code> = error. But <code>tg / NULL</code> = NULL (safely handled).</p>
+      <pre><span class="sql-comment">-- Without NULLIF:</span>
+150 / 0    = <span class="red">ERROR! Division by zero!</span>
+
+<span class="sql-comment">-- With NULLIF:</span>
+150 / NULL = NULL  <span class="sql-comment">(safe — just means "unknown")</span></pre>
+    </div>
+  </div>
+
+  <div class="toggle-section">
+    <button class="toggle-btn" onclick="toggle(this)">
+      What does ROUND(..., 2) do? <span class="arrow">&#9654;</span>
+    </button>
+    <div class="toggle-content">
+      <p><code>ROUND(value, 2)</code> rounds to 2 decimal places:</p>
+      <pre>150 / 48 = 3.125      → ROUND = <span class="sql-number">3.13</span>
+120 / 55 = 2.18181... → ROUND = <span class="sql-number">2.18</span></pre>
+      <p>Makes the numbers cleaner for dashboard display. No one needs 15 decimal places of TG/HDL ratio.</p>
+    </div>
+  </div>
+
+  <h3>Why this matters for your thesis</h3>
+  <p>If your dashboard shows that people with <strong>Pattern B (Small Dense) LDL</strong> have worse CAC scores regardless of total LDL level, that's powerful evidence. It says: "It's not about HOW MUCH LDL you have, it's about WHAT KIND."</p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 11: NON-HDL -->
+<!-- ============================================================ -->
+<section id="non-hdl">
+  <h2>Section 7: Non-HDL Cholesterol</h2>
+
+  <div class="equation">
+    <span style="color:var(--accent)">Non-HDL Cholesterol</span> &nbsp;=&nbsp;
+    <span style="color:var(--accent4)">Total Cholesterol</span> &nbsp;-&nbsp;
+    <span style="color:var(--accent3)">HDL Cholesterol</span>
+    <span class="eq-label">Captures ALL atherogenic (artery-damaging) lipoproteins: LDL + VLDL + IDL</span>
+  </div>
+
+  <pre>(chol - hdl_chol) <span class="sql-keyword">AS</span> non_hdl_chol</pre>
+
+  <h3>Why not just use LDL?</h3>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine you're counting all the "bad guys" in a room. LDL only counts the ones wearing red shirts. Non-HDL counts <strong>everyone who isn't a good guy (HDL)</strong> — red shirts, blue shirts, gray shirts. It's a more complete picture of threat.</p>
+  </div>
+
+  <p>The <span class="jargon" data-def="American Heart Association / American College of Cardiology — the leading U.S. bodies for cardiovascular guidelines. Their 2018 guidelines recommend non-HDL-C as a better predictor than LDL-C alone.">AHA/ACC</span> now recommends non-HDL over LDL alone because:</p>
+  <ul style="margin:10px 0 10px 24px">
+    <li>Standard LDL is often <em>calculated</em> (Friedewald equation), not measured directly</li>
+    <li>The calculation becomes inaccurate when triglycerides are high (>400 mg/dL)</li>
+    <li>Non-HDL captures <span class="jargon" data-def="Very Low-Density Lipoprotein — carries triglycerides. High VLDL correlates with metabolic syndrome. It's included in non-HDL but missed by LDL measurement alone.">VLDL</span> and other atherogenic particles that LDL-C misses</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 12: METABOLIC SYNDROME SCORE -->
+<!-- ============================================================ -->
+<section id="met-score">
+  <h2>Section 8: Metabolic Syndrome Score (0-5)</h2>
+
+  <p><span class="jargon" data-def="Metabolic Syndrome (MetS) — a cluster of conditions occurring together: high blood pressure, high blood sugar, excess body fat around the waist, and abnormal cholesterol. Having 3+ of the 5 criteria = clinical diagnosis.">Metabolic Syndrome</span> is diagnosed when someone has <strong>3 or more</strong> of 5 criteria. Your score counts how many they have:</p>
+
+  <div class="diagram"><span class="muted">The 5 MetS criteria (NCEP ATP III, adapted):</span>
+
+  <span class="yellow">Flag</span>                    <span class="highlight">Threshold</span>               <span class="green">What it means</span>
+  ────────────────────   ──────────────────────   ──────────────────────────
+  _flag_high_tg          TG >= 150 mg/dL          Too much fat in blood
+  _flag_high_glucose     Glucose >= 100 mg/dL     Blood sugar too high
+  _flag_low_hdl          HDL < 40(M) / 50(F)      Not enough "good" cholesterol
+  _flag_obese            BMI >= 30                 Obesity (proxy for waist circ.)
+  _flag_hypertension     hypertension = 1          High blood pressure
+
+  <span class="pink">Score = sum of all flags (0 to 5)</span>
+  Score >= 3 = <span class="red">Clinical Metabolic Syndrome diagnosis</span></div>
+
+  <pre><span class="sql-comment">-- Simple addition of the five 0/1 flags</span>
+(_flag_high_tg + _flag_high_glucose + _flag_low_hdl + _flag_obese + _flag_hypertension)
+    <span class="sql-keyword">AS</span> metabolic_syndrome_score</pre>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Think of it like a "health violation score" for a restaurant. Each violation (dirty kitchen, expired food, no hand-washing, pest problem, wrong temperature) is 1 point. Score 0 = spotless. Score 3+ = you get shut down. Same idea — each metabolic flag is one violation, and 3+ means your metabolism is in serious trouble.</p>
+  </div>
+
+  <div class="info-box warn">
+    <span class="icon">&#9888;&#65039;</span>
+    <div><strong>Limitation:</strong> The real MetS criteria use <strong>waist circumference</strong>, not BMI. Our dataset doesn't have waist measurements, so BMI >= 30 is used as a proxy. Mention this in your project README — reviewers appreciate intellectual honesty.</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 13: METABOLIC HEALTH STATUS -->
+<!-- ============================================================ -->
+<section id="met-status">
+  <h2>Section 9: Metabolic Health Status</h2>
+
+  <p>This is the <strong>most important derived column</strong> for your thesis. It creates a binary grouping:</p>
+
+  <div class="diagram">
+  <span class="green">Score = 0  →  "Metabolically healthy"</span>      <span class="muted">Zero flags triggered</span>
+  <span class="red">Score >= 1 →  "Metabolically unhealthy"</span>    <span class="muted">At least one flag triggered</span></div>
+
+  <pre><span class="sql-keyword">CASE</span>
+    <span class="sql-keyword">WHEN</span> (_flag_high_tg + _flag_high_glucose + _flag_low_hdl
+          + _flag_obese + _flag_hypertension) = <span class="sql-number">0</span>
+        <span class="sql-keyword">THEN</span> <span class="sql-string">'Metabolically healthy'</span>
+    <span class="sql-keyword">ELSE</span> <span class="sql-string">'Metabolically unhealthy'</span>
+<span class="sql-keyword">END AS</span> metabolic_health_status</pre>
+
+  <h3>Why this column is the key to your thesis</h3>
+
+  <p>It enables the <strong>four-quadrant comparison</strong> that proves (or disproves) the LDL myth:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th style="color:var(--accent3)">Metabolically Healthy</th>
+        <th style="color:var(--danger)">Metabolically Unhealthy</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>High LDL</strong> (>= 160)</td>
+        <td>
+          <span class="badge badge-green">Group A</span><br>
+          High LDL but healthy metabolism.<br>
+          <em>If LDL myth is wrong → low CAC scores here</em>
+        </td>
+        <td>
+          <span class="badge badge-red">Group B</span><br>
+          High LDL AND unhealthy metabolism.<br>
+          <em>Likely high CAC scores</em>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Low LDL</strong> (&lt; 130)</td>
+        <td>
+          <span class="badge badge-green">Group C</span><br>
+          Low LDL and healthy metabolism.<br>
+          <em>Likely low CAC scores</em>
+        </td>
+        <td>
+          <span class="badge badge-yellow">Group D</span><br>
+          Low LDL but unhealthy metabolism.<br>
+          <em>If your thesis is right → HIGH CAC scores here despite low LDL</em>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="analogy">
+    <div class="label">The punchline</div>
+    <p>If <strong>Group D</strong> (low LDL, unhealthy metabolism) has <em>worse</em> CAC scores than <strong>Group A</strong> (high LDL, healthy metabolism), then metabolic health matters more than LDL alone. That's the myth busted.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 14: QUALITY CHECKS -->
+<!-- ============================================================ -->
+<section id="quality">
+  <h2>Quality Checks (Bruin Header)</h2>
+
+  <p>The <code>checks:</code> in the Bruin header run <strong>after</strong> the SQL executes. If any check fails, the pipeline stops and reports the error.</p>
+
+  <table>
+    <thead>
+      <tr><th>Check</th><th>What it does</th><th>Applied to</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>not_null</code></td>
+        <td>Fails if ANY row has NULL in this column</td>
+        <td>no_figshare, cacs, cac_risk_category, ldl_category, metabolic_health_status</td>
+      </tr>
+      <tr>
+        <td><code>unique</code></td>
+        <td>Fails if any value appears more than once</td>
+        <td>no_figshare (each subject should be unique)</td>
+      </tr>
+      <tr>
+        <td><code>accepted_values</code></td>
+        <td>Fails if any value is NOT in the allowed list</td>
+        <td>cac_risk_category, ldl_category, smoking_status, estimated_ldl_particle_pattern, metabolic_health_status</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="toggle-section">
+    <button class="toggle-btn" onclick="toggle(this)">
+      Why we removed the "positive" check from cacs <span class="arrow">&#9654;</span>
+    </button>
+    <div class="toggle-content">
+      <p>The original draft had <code>positive</code> on both <code>cacs</code> and <code>metabolic_syndrome_score</code>. The problem:</p>
+      <pre><span class="sql-comment">-- "positive" means > 0</span>
+cacs = 0          → <span class="red">FAILS positive check!</span>  But 0 is valid ("No calcification")
+met_score = 0     → <span class="red">FAILS positive check!</span>  But 0 is valid ("Metabolically healthy")</pre>
+      <p>Zero is a <strong>meaningful, valid value</strong> in both cases. The check would have rejected perfectly good data. We removed it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SECTION 15: THE THESIS -->
+<!-- ============================================================ -->
+<section id="thesis">
+  <h2>Connecting It All: The Thesis</h2>
+
+  <p>Here's the full picture of what your staging layer produces and how it feeds the LipidMythBuster argument:</p>
+
+  <div class="diagram"><span class="muted">COLUMN MAP: What feeds what on your future dashboard</span>
+
+  <span class="yellow">RAW BIOMARKERS</span>          <span class="highlight">STAGING DERIVED</span>              <span class="pink">DASHBOARD TILES</span>
+  ─────────────────       ──────────────────────       ─────────────────────
+  ldl_chol           -->  ldl_category             -->  <span class="pink">Tile 1: CAC by LDL group</span>
+  cacs               -->  cac_risk_category        -->  <span class="pink">     (bar chart)</span>
+
+  tg, glucose,       -->  metabolic_health_status  -->  <span class="pink">Tile 2: CAC by metabolic</span>
+  hdl_chol, bmi,     -->  metabolic_syndrome_score  --> <span class="pink">     health status</span>
+  hypertension       -->  high_triglycerides, etc.      <span class="pink">     (comparison chart)</span>
+
+  tg, hdl_chol       -->  tg_hdl_ratio             -->  <span class="pink">Bonus: LDL particle</span>
+                     -->  estimated_ldl_particle_   -->  <span class="pink">     pattern analysis</span>
+                          pattern
+
+  chol, hdl_chol     -->  non_hdl_chol             -->  <span class="pink">Bonus: Non-HDL vs LDL</span>
+                                                        <span class="pink">     comparison</span></div>
+
+  <div class="card" style="border-color: var(--accent2);">
+    <h3 style="color: var(--accent2);">The Story Your Dashboard Will Tell</h3>
+    <ol style="margin: 12px 0 0 20px; line-height: 2;">
+      <li><strong>"LDL alone doesn't predict CAC well"</strong> — show CAC distribution across LDL categories. If "Very high" LDL people don't have significantly worse CAC than "Optimal" LDL people, the myth is shaky.</li>
+      <li><strong>"Metabolic health predicts CAC better"</strong> — show CAC distribution by metabolic_health_status. If "Metabolically unhealthy" people have dramatically worse CAC regardless of LDL, your thesis holds.</li>
+      <li><strong>"LDL particle quality matters"</strong> — show that Pattern B (small dense) LDL correlates with worse CAC, even at the same total LDL level.</li>
+      <li><strong>"The four-quadrant proof"</strong> — Group A vs Group D comparison. If low-LDL-unhealthy-metabolism has worse CAC than high-LDL-healthy-metabolism, that's the mic drop.</li>
+    </ol>
+  </div>
+
+  <div class="info-box tip">
+    <span class="icon">&#127891;</span>
+    <div><strong>For your peer reviewer:</strong> All clinical thresholds used in this staging layer are based on published guidelines (NCEP ATP III, MESA, AHA/ACC). The TG/HDL ratio proxy for LDL particle size is supported by Maruyama et al. (2003) and Boizel et al. (2000). BMI >= 30 is acknowledged as a proxy for waist circumference.</div>
+  </div>
+</section>
+
+</div><!-- container -->
+
+<script>
+function toggle(btn) {
+  btn.classList.toggle('open');
+  const content = btn.nextElementSibling;
+  content.classList.toggle('open');
+}
+
+// Highlight active nav on scroll
+const sections = document.querySelectorAll('section');
+const navLinks = document.querySelectorAll('.nav a');
+
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 100) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+
+</body>
+</html>

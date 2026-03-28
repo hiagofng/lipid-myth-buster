@@ -207,3 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 .bruin.yml
+logs/runs
+logs/*.log
+*.py[cod]
+logs/queries

@@ -1,0 +1,3 @@
+-- This is a reference copy. The actual Bruin asset lives at:
+-- bruin/pipeline/assets/staging/stg_cac_health_screening.sql
+-- See that file for the runnable version.
